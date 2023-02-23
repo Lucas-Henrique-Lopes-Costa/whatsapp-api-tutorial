@@ -1,3 +1,4 @@
+const fetch = require('node-fetch');
 const { Client, MessageMedia, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
 const { body, validationResult } = require('express-validator');
@@ -21,13 +22,6 @@ app.use(express.urlencoded({
   extended: true
 }));
 
-/**
- * BASED ON MANY QUESTIONS
- * Actually ready mentioned on the tutorials
- * 
- * Many people confused about the warning for file-upload
- * So, we just disabling the debug for simplicity.
- */
 app.use(fileUpload({
   debug: false
 }));
@@ -57,72 +51,287 @@ const client = new Client({
 });
 
 client.on('message', msg => {
-  if (msg.body == '!ping') {
-    msg.reply('pong');
-  } else if (msg.body == 'good morning') {
-    msg.reply('selamat pagi');
-  } else if (msg.body == '!groups') {
-    client.getChats().then(chats => {
-      const groups = chats.filter(chat => chat.isGroup);
+  if (msg.body != '') {
+    // Pipefy
+    let url = 'https://api.pipefy.com/graphql';
+      
+    // GET DATA
+    const optionsR = {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        authorization: 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ1c2VyIjp7ImlkIjozMDIxOTk5MjMsImVtYWlsIjoiZHJtYXJjb3R1bGlvQGhvdG1haWwuY29tIiwiYXBwbGljYXRpb24iOjMwMDIzMDE3Mn19.OOY7pe78F3T4rQ4jzOmxmMowXSJTy1COii0EimH_9gCOM9D3iXKb1tKD3Se7q-8DHea30NTSqnNmgWp87QS72w'
+      },
+      body: JSON.stringify({
+        query:
+          `
+          {
+            cards(pipe_id: 302989282) {
+              edges {
+                node {
+                  id
+                  current_phase {
+                    name
+                    id
+                  }
+                  fields {
+                    value
+                  }
+                  child_relations {
+                    cards {
+                      title
+                      current_phase {
+                        name
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          `
+      })
+    };
 
-      if (groups.length == 0) {
-        msg.reply('You have no group yet.');
-      } else {
-        let replyMsg = '*YOUR GROUPS*\n\n';
-        groups.forEach((group, i) => {
-          replyMsg += `ID: ${group.id._serialized}\nName: ${group.name}\n\n`;
-        });
-        replyMsg += '_You can use the group id to send a message to the group._'
-        msg.reply(replyMsg);
-      }
-    });
-  }
+    fetch(url, optionsR)
+      .then(res => res.json())
+      .then(data => {
+        // Contato WhatsApp com o responsável
+        for (let index = 0; index < data.data.cards.edges.length; index++) {
+          const phase = data.data.cards.edges[index].node.current_phase.name;
+          const name = data.data.cards.edges[index].node.fields[0].value.split(" ")[0];
+          const number = "55" + data.data.cards.edges[index].node.fields[2].value.slice(4,6) + data.data.cards.edges[index].node.fields[2].value.slice(8).replace("-", "");
+          let dataNumber = number.includes('@c.us') ? number : `${number}@c.us`;    
 
-  // NOTE!
-  // UNCOMMENT THE SCRIPT BELOW IF YOU WANT TO SAVE THE MESSAGE MEDIA FILES
-  // Downloading media
-  // if (msg.hasMedia) {
-  //   msg.downloadMedia().then(media => {
-  //     // To better understanding
-  //     // Please look at the console what data we get
-  //     console.log(media);
+          if(phase == "Contato em WhatsApp"){
+            let dataMessage = `Oi, ${name}, tudo bem?`;
 
-  //     if (media) {
-  //       // The folder to store: change as you want!
-  //       // Create if not exists
-  //       const mediaPath = './downloaded-media/';
+            console.log("Enviando para: " + dataNumber)
+            console.log("Mensagem: " + dataMessage)
+            console.log("\n")
 
-  //       if (!fs.existsSync(mediaPath)) {
-  //         fs.mkdirSync(mediaPath);
-  //       }
+            setTimeout(function() {
+              client.sendMessage(dataNumber, dataMessage);
+            },1000 + Math.floor(Math.random() * 1000));
+            
+            // CHANGE
+            const id = data.data.cards.edges[index].node.id;
+            
+            const optionsPhase = {
+              method: 'POST',
+              headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+                authorization: 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ1c2VyIjp7ImlkIjozMDIxOTk5MjMsImVtYWlsIjoiZHJtYXJjb3R1bGlvQGhvdG1haWwuY29tIiwiYXBwbGljYXRpb24iOjMwMDIzMDE3Mn19.OOY7pe78F3T4rQ4jzOmxmMowXSJTy1COii0EimH_9gCOM9D3iXKb1tKD3Se7q-8DHea30NTSqnNmgWp87QS72w'
+              },
+              body: JSON.stringify({
+                query:
+                  `
+                  mutation {
+                    moveCardToPhase(input: { card_id: "${id}", destination_phase_id: "318591630"}){
+                      card{
+                        id
+                      }
+                    }
+                  }
+                  `
+              })
+            };
 
-  //       // Get the file extension by mime-type
-  //       const extension = mime.extension(media.mimetype);
+            fetch(url, optionsPhase)
+            .then(res => res.json())
+            .then(data => { console.log("Fase mudada") })
+            .catch(err => console.error('error:' + err));
+          }
+
+          if(phase == "Marcados"){
+            let dataMessage = `Ok, ${name}, confirmamos sua consulta! Agradecemos pela atenção, vamos entrar em contato em breve para te lembrar 😉`;
+
+            console.log("Enviando para: " + dataNumber)
+            console.log("Mensagem: " + dataMessage)
+            console.log("\n")
+
+            setTimeout(function() {
+              client.sendMessage(dataNumber, dataMessage);
+            },1000 + Math.floor(Math.random() * 1000));
+            
+            // CHANGE
+            const id = data.data.cards.edges[index].node.id;
+            
+            const optionsPhase = {
+              method: 'POST',
+              headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+                authorization: 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ1c2VyIjp7ImlkIjozMDIxOTk5MjMsImVtYWlsIjoiZHJtYXJjb3R1bGlvQGhvdG1haWwuY29tIiwiYXBwbGljYXRpb24iOjMwMDIzMDE3Mn19.OOY7pe78F3T4rQ4jzOmxmMowXSJTy1COii0EimH_9gCOM9D3iXKb1tKD3Se7q-8DHea30NTSqnNmgWp87QS72w'
+              },
+              body: JSON.stringify({
+                query:
+                  `
+                  mutation {
+                    moveCardToPhase(input: { card_id: "${id}", destination_phase_id: "318591631"}){
+                      card{
+                        id
+                      }
+                    }
+                  }
+                  `
+              })
+            };
+
+            fetch(url, optionsPhase)
+            .then(res => res.json())
+            .then(data => { console.log("Fase mudada") })
+            .catch(err => console.error('error:' + err));
+          }
+
+          if(phase == "Agradecimento"){
+            let dataMessage = `Olá!, ${name}! Agradecemos sua consulta hoje! Queremos saber o que você achou!! Avalie nosso atendimento: https://drmarcotulio.github.io/avaliacao/`;
+
+            console.log("Enviando para: " + dataNumber)
+            console.log("Mensagem: " + dataMessage)
+            console.log("\n")
+
+            setTimeout(function() {
+              client.sendMessage(dataNumber, dataMessage);
+            },1000 + Math.floor(Math.random() * 1000));
+            
+            // CHANGE
+            const id = data.data.cards.edges[index].node.id;
+            
+            const optionsPhase = {
+              method: 'POST',
+              headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+                authorization: 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ1c2VyIjp7ImlkIjozMDIxOTk5MjMsImVtYWlsIjoiZHJtYXJjb3R1bGlvQGhvdG1haWwuY29tIiwiYXBwbGljYXRpb24iOjMwMDIzMDE3Mn19.OOY7pe78F3T4rQ4jzOmxmMowXSJTy1COii0EimH_9gCOM9D3iXKb1tKD3Se7q-8DHea30NTSqnNmgWp87QS72w'
+              },
+              body: JSON.stringify({
+                query:
+                  `
+                  mutation {
+                    moveCardToPhase(input: { card_id: "${id}", destination_phase_id: "318615548"}){
+                      card{
+                        id
+                      }
+                    }
+                  }
+                  `
+              })
+            };
+
+            fetch(url, optionsPhase)
+            .then(res => res.json())
+            .then(data => { console.log("Fase mudada") })
+            .catch(err => console.error('error:' + err));
+          }
+        }
         
-  //       // Filename: change as you want! 
-  //       // I will use the time for this example
-  //       // Why not use media.filename? Because the value is not certain exists
-  //       const filename = new Date().getTime();
+        // Lembrete do paciente
+        const optionsP = {
+          method: 'POST',
+          headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+            authorization: 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ1c2VyIjp7ImlkIjozMDIxOTk5MjMsImVtYWlsIjoiZHJtYXJjb3R1bGlvQGhvdG1haWwuY29tIiwiYXBwbGljYXRpb24iOjMwMDIzMDE3Mn19.OOY7pe78F3T4rQ4jzOmxmMowXSJTy1COii0EimH_9gCOM9D3iXKb1tKD3Se7q-8DHea30NTSqnNmgWp87QS72w'
+          },
+          body: JSON.stringify({
+            query:
+              `
+              {
+                cards(pipe_id: "302989283") {
+                  edges {
+                    node {
+                      id
+                      title
+                      current_phase {
+                        name
+                      }
+                      parent_relations {
+                        cards {
+                          title
+                          fields {
+                            value
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }      
+              `
+          })
+        };
 
-  //       const fullFilename = mediaPath + filename + '.' + extension;
+        fetch(url, optionsP)
+          .then(res => res.json())
+          .then(data => {
+            for (let index = 0; index < data.data.cards.edges.length; index++) {
+              const phase = data.data.cards.edges[index].node.current_phase.name;
+              const nameR = data.data.cards.edges[index].node.parent_relations[0].cards[0].title.split(" ")[0];
+              const nameP = data.data.cards.edges[index].node.title.split(" ")[0];
+              const number = 55 + data.data.cards.edges[index].node.parent_relations[0].cards[0].fields[2].value.slice(4,6) + data.data.cards.edges[0].node.parent_relations[0].cards[0].fields[2].value.slice(8).replace("-", "");
+              let dataNumber = number.includes('@c.us') ? number : `${number}@c.us`;    
 
-  //       // Save to file
-  //       try {
-  //         fs.writeFileSync(fullFilename, media.data, { encoding: 'base64' }); 
-  //         console.log('File downloaded successfully!', fullFilename);
-  //       } catch (err) {
-  //         console.log('Failed to save the file:', err);
-  //       }
-  //     }
-  //   });
-  // }
+              switch (phase) {
+                case "Lembrete":
+                  let dataMessage = `Oi, ${nameR}, tudo bem? Venho confirmar a consulta do ${nameP} hoje, está tudo ok?`;
+                
+                  console.log("Enviando para: " + dataNumber)
+                  console.log("Mensagem: " + dataMessage)
+                  console.log("\n")
+          
+                  setTimeout(function() {
+                    client.sendMessage(dataNumber, dataMessage);
+                  },1000 + Math.floor(Math.random() * 1000));
+
+                  // CHANGE
+                  const id = data.data.cards.edges[index].node.id;
+                  
+                  const optionsPhase = {
+                    method: 'POST',
+                    headers: {
+                      accept: 'application/json',
+                      'content-type': 'application/json',
+                      authorization: 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ1c2VyIjp7ImlkIjozMDIxOTk5MjMsImVtYWlsIjoiZHJtYXJjb3R1bGlvQGhvdG1haWwuY29tIiwiYXBwbGljYXRpb24iOjMwMDIzMDE3Mn19.OOY7pe78F3T4rQ4jzOmxmMowXSJTy1COii0EimH_9gCOM9D3iXKb1tKD3Se7q-8DHea30NTSqnNmgWp87QS72w'
+                    },
+                    body: JSON.stringify({
+                      query:
+                        `
+                        mutation {
+                          moveCardToPhase(input: { card_id: "${id}", destination_phase_id: "318594860"}){
+                            card{
+                              id
+                            }
+                          }
+                        }
+                        `
+                    })
+                  };
+
+                  fetch(url, optionsPhase)
+                  .then(res => res.json())
+                  .then(data => { console.log("Fase mudada") })
+                  .catch(err => console.error('error:' + err));
+                  break;
+              
+                default:
+                  break;
+              }
+            }
+          })
+          .catch(err => console.error('error:' + err));
+      })
+      .catch(err => console.error('error:' + err));
+  }
 });
 
 client.initialize();
 
 // Socket IO
 io.on('connection', function(socket) {
-  socket.emit('message', 'Connecting...');
+  socket.emit('message', 'Conectado');
 
   client.on('qr', (qr) => {
     console.log('QR RECEIVED', qr);

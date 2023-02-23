@@ -331,24 +331,24 @@ client.initialize();
 
 // Socket IO
 io.on('connection', function(socket) {
-  socket.emit('message', 'Conectado');
+  socket.emit('message', 'Conectando...');
 
   client.on('qr', (qr) => {
     console.log('QR RECEIVED', qr);
     qrcode.toDataURL(qr, (err, url) => {
       socket.emit('qr', url);
-      socket.emit('message', 'QR Code received, scan please!');
+      socket.emit('message', 'QR Code recebido, abra seu whatsapp e leia!');
     });
   });
 
   client.on('ready', () => {
     socket.emit('ready', 'Whatsapp is ready!');
-    socket.emit('message', 'Whatsapp is ready!');
+    socket.emit('message', 'Whatsapp está pronto!');
   });
 
   client.on('authenticated', () => {
     socket.emit('authenticated', 'Whatsapp is authenticated!');
-    socket.emit('message', 'Whatsapp is authenticated!');
+    socket.emit('message', 'Whatsapp está autenticado!');
     console.log('AUTHENTICATED');
   });
 
@@ -357,7 +357,7 @@ io.on('connection', function(socket) {
   });
 
   client.on('disconnected', (reason) => {
-    socket.emit('message', 'Whatsapp is disconnected!');
+    socket.emit('message', 'Whatsapp is desconectado!');
     client.destroy();
     client.initialize();
   });
